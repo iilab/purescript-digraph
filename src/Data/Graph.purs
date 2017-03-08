@@ -1,7 +1,6 @@
 module Data.Graph
-  ( AdjacencyList
-  , Graph
-  , fromAdjacencyList
+  ( Graph
+  , fromFoldable
   , empty
   , isEmpty
   , insertVertex
@@ -28,6 +27,7 @@ module Data.Graph
 
 import Prelude
 
+import Data.Foldable (class Foldable)
 import Data.Foldable (elem, foldl) as F
 import Data.List (List(..), (\\), (:))
 import Data.List (filter, reverse, singleton, snoc) as L
@@ -47,33 +47,29 @@ import Data.PQueue.Partial (head, tail) as PPQ
 -- | type `k`, connected by edges with a weight of type `w`.
 data Graph k w v = Graph (Map k v) (Map k (Map k w))
 
--- | `AdjacencyList k v w` represents a `List` of vertices of type `k` with a
--- | list of adjacent vertices connected with edges of type `w`.
-type AdjacencyList k v w = List (Tuple k (Tuple v (List (Tuple k w))))
-
 instance showGraph :: (Show k, Show v, Show w) => Show (Graph k w v) where
   show (Graph vertexMap edgeMap) = "Graph vertices: " <> show vertexMap <> " edges: " <> show edgeMap
 
 instance functorGraph :: Functor (Graph k w) where
   map f (Graph vertexMap edgeMap) = Graph (map f vertexMap) edgeMap
 
--- | Create a graph from an adjacency list.
-fromAdjacencyList :: forall k v w. Ord k => AdjacencyList k v w -> Graph k w v
-fromAdjacencyList as = (insertEdges <<< insertVertices) empty
+-- | Create a graph from a foldable collection of vertices and edges.
+fromFoldable :: forall f k v w. (Foldable f, Ord k) => f (Tuple k v) -> f (Tuple k (f (Tuple k w))) -> Graph k w v
+fromFoldable vertices edges = (insertEdges <<< insertVertices) empty
   where
     -- Unwrap the vertices from the adjacency list and insert them into the graph.
     insertVertices :: Graph k w v -> Graph k w v
-    insertVertices g = F.foldl (flip unwrapVertex) g as
+    insertVertices g = F.foldl (flip unwrapVertex) g vertices
 
-    unwrapVertex :: Tuple k (Tuple v (List (Tuple k w))) -> Graph k w v -> Graph k w v
-    unwrapVertex (Tuple k (Tuple v _)) = insertVertex k v
+    unwrapVertex :: Tuple k v -> Graph k w v -> Graph k w v
+    unwrapVertex (Tuple k v) = insertVertex k v
 
     -- Unwrap the edges from the adjacency list and insert them into the graph.
     insertEdges :: Graph k w v -> Graph k w v
-    insertEdges g = F.foldl (flip unwrapEdges) g as
+    insertEdges g = F.foldl (flip unwrapEdges) g edges
 
-    unwrapEdges :: Tuple k (Tuple v (List (Tuple k w))) -> Graph k w v -> Graph k w v
-    unwrapEdges (Tuple a (Tuple v edges)) g = F.foldl (flip $ unwrapEdge a) g edges
+    unwrapEdges :: Tuple k (f (Tuple k w)) -> Graph k w v -> Graph k w v
+    unwrapEdges (Tuple a edges) g = F.foldl (flip $ unwrapEdge a) g edges
 
     unwrapEdge :: k -> (Tuple k w) -> Graph k w v -> Graph k w v
     unwrapEdge a (Tuple b w) = insertEdge a b w
@@ -216,8 +212,9 @@ connectedComponents g =
   let go Nil gs = gs
       go (k:ks) gs =
         let ks' = traverse k g
-            as = map (\a -> Tuple a (Tuple (unsafePartial $ fromJust $ lookup a g) (adjacent' a g))) ks'
-        in go (ks \\ ks') (L.snoc gs (fromAdjacencyList as))
+            vertexList = map (\a -> Tuple a (unsafePartial $ fromJust $ lookup a g)) ks'
+            edgeList = map (\a -> Tuple a (adjacent' a g)) ks'
+        in go (ks \\ ks') (L.snoc gs (fromFoldable vertexList edgeList))
   in go (keys g) Nil
 
 -- | Filter a graph, keeping the vertices which satisfy a predicate function.
