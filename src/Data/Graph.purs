@@ -32,7 +32,7 @@ import Data.Foldable (elem, foldl) as F
 import Data.List (List(..), (\\), (:))
 import Data.List (filter, reverse, singleton, snoc) as L
 import Data.Map (Map)
-import Data.Map (alter, delete, empty, insert, isEmpty, keys, lookup, member, singleton, size, toList, update, values) as M
+import Data.Map (alter, delete, empty, insert, isEmpty, keys, lookup, member, singleton, size, toUnfoldable, update, values) as M
 import Data.Maybe (Maybe(..), maybe, fromJust)
 import Data.Set (Set)
 import Data.Set (empty, insert, member) as S
@@ -48,13 +48,13 @@ import Data.PQueue.Partial (head, tail) as PPQ
 data Graph k w v = Graph (Map k v) (Map k (Map k w))
 
 instance showGraph :: (Show k, Show v, Show w) => Show (Graph k w v) where
-  show (Graph vertexMap edgeMap) = "Graph vertices: " <> show vertexMap <> " edges: " <> show edgeMap
+  show (Graph vertexMap edgeMap) = "Graph (" <> show vertexMap <> ") (" <> show edgeMap <> ")"
 
 instance functorGraph :: Functor (Graph k w) where
   map f (Graph vertexMap edgeMap) = Graph (map f vertexMap) edgeMap
 
 -- | Create a graph from a foldable collection of vertices and edges.
-fromFoldable :: forall f k v w. (Foldable f, Ord k) => f (Tuple k v) -> f (Tuple k (f (Tuple k w))) -> Graph k w v
+fromFoldable :: forall f k v w. Foldable f => Ord k => f (Tuple k v) -> f (Tuple k (f (Tuple k w))) -> Graph k w v
 fromFoldable vertices edges = (insertEdges <<< insertVertices) empty
   where
     -- Unwrap the vertices from the adjacency list and insert them into the graph.
@@ -135,7 +135,7 @@ adjacent key (Graph _ edgeMap)= maybe Nil M.keys (M.lookup key edgeMap)
 
 -- | Get the adjacent vertices and associated costs of a vertex.
 adjacent' :: forall k v w. Ord k => k -> Graph k w v -> List (Tuple k w)
-adjacent' key (Graph _ edgeMap)= maybe Nil M.toList (M.lookup key edgeMap)
+adjacent' key (Graph _ edgeMap)= maybe Nil M.toUnfoldable (M.lookup key edgeMap)
 
 -- | Test whether two vertices are adjacent in a graph.
 isAdjacent :: forall k v w. Ord k => k -> k -> Graph k w v -> Boolean
@@ -148,13 +148,13 @@ weight a b (Graph _ edgeMap) = maybe Nothing (M.lookup b) (M.lookup a edgeMap)
 
 -- | Get the shortest path between two vertices. Returns `Nothing` if no path
 -- | exists between the vertices.
-shortestPath :: forall k v w. (Ord k, Ord w, Semiring w) => k -> k -> Graph k w v -> Maybe (List k)
+shortestPath :: forall k v w. Ord k => Ord w => Semiring w => k -> k -> Graph k w v -> Maybe (List k)
 shortestPath from to = shortestPath' (_ == to) from
 
 -- | Get the shortest path from a starting vertex to a vertex that satisifes a
 -- | predicate function. Returns `Nothing` if no path exists between the
 -- | vertices.
-shortestPath' :: forall k v w. (Ord k, Ord w, Semiring w) => (k -> Boolean) -> k -> Graph k w v -> Maybe (List k)
+shortestPath' :: forall k v w. Ord k => Ord w => Semiring w => (k -> Boolean) -> k -> Graph k w v -> Maybe (List k)
 shortestPath' p start g = go (PQ.singleton zero start) S.empty (M.singleton start zero) M.empty
   where
     go :: PQueue w k     -- priority queue of fringe vertices

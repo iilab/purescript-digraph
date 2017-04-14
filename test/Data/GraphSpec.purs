@@ -6,7 +6,7 @@ import Data.Array (elem) as A
 import Control.Monad.Aff (Aff)
 import Data.Char (toLower) as C
 import Data.Foldable (class Foldable)
-import Data.List (List, (!!))
+import Data.List ((!!))
 import Data.List (fromFoldable) as L
 import Data.Maybe (Maybe(..), fromJust)
 import Data.Tuple (Tuple(..))
@@ -16,7 +16,7 @@ import Test.Spec.Assertions (shouldEqual)
 
 import Data.Graph
 
-shouldMatch :: forall a f g r. (Show a, Eq a, Foldable f, Foldable g) => f a -> g a -> Aff r Unit
+shouldMatch :: forall a f g r. Show a => Eq a => Foldable f => Foldable g => f a -> g a -> Aff r Unit
 shouldMatch a b = shouldEqual (L.fromFoldable a) (L.fromFoldable b)
 
 graphSpec :: forall r. (Spec r) Unit
